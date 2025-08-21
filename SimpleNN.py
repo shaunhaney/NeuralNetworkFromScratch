@@ -1,5 +1,9 @@
 import random
 import math
+import matplotlib.pyplot as plt
+import numpy as np
+from HistoryList import HistoryList
+
 class SimpleNN:
 
     # input
@@ -118,8 +122,32 @@ class SimpleNN:
     def b2(self):
         del self._b2
 
+    # epochs
+    @property
+    def epochs(self):
+        return self._epochs
 
-    def __init__(self, input, expectedOutput): 
+    @epochs.setter
+    def epochs(self, value):
+        self._epochs = value
+
+    @epochs.deleter
+    def epochs(self):
+        del self._epochs
+
+    def createReporter(self, reporter, matrix):
+        reporter.register(matrix)
+        self._reporters.append(reporter)
+
+    def report(self):
+        for reporter in self._reporters: 
+            reporter.record()
+
+
+    def __init__(self, input, expectedOutput):
+        self._reporters=[]
+        self.actualOutput=[]
+
         try:
             self._inputRows=len(input)
             self._inputColumns=len(input[0])
@@ -149,7 +177,7 @@ class SimpleNN:
             self.w1.append([])
             for ndx2 in range(self._hiddenLayerSize):
                 self.w1[ndx].append(random.random())
-        
+
         # Create the initial set of weights
         # The matrix is going to be the number of hidden nodes (rows) by the 
         # number of outputs (columns) 
@@ -168,6 +196,8 @@ class SimpleNN:
         self.b2 = []
         for ndx in range(self._outputColumns):
             self.b2.append(random.random())
+
+        
     
     def dotProduct(self, mX,mY):
         xNumRows=len(mX)
@@ -194,7 +224,7 @@ class SimpleNN:
         if (not valid):
             return 
         o=[]
-        # Go along the rows of the array and compose a row in the output 
+        # Go along a single column and compose a row in the output 
         # array
         for d in range(len(a[0])):
             o.append([])
@@ -218,7 +248,7 @@ class SimpleNN:
         
         # Perform dot product between hidden layer and outputs
         z2=self.dotProduct(self._hiddenLayer,self.w2)
-        self.actualOutput=[]
+        self.actualOutput.clear()
         for ndx in range(len(z2)):
             self.actualOutput.append([])
             for ndx2 in range(len(z2[0])):
@@ -299,19 +329,79 @@ class SimpleNN:
             grad = sum([output_delta[k][i] for k in range(self._outputRows)])
             self.b2[i] += learningRate * grad
 
+    def train(self,learningRate=0.1,maxEpochs=None,targetLoss=0.00001):
+        loss=1
+        ctr=0
+        
+        self.report()
 
+        keepGoing = lambda loss,ctr: (ctr<maxEpochs if maxEpochs is not None else True) and loss>targetLoss
+        while (keepGoing(loss,ctr)):
+            self.forwardPropagation()
+            self.backpropagation(learningRate)
+            loss=self.loss()
+            ctr+=1
+            if (ctr%10000==0):
+                self.report()
+        self.report()
+        self.epochs=ctr 
+
+def plot_history(histories, names):
+    columnsInARow=int(len(histories)/2+0.5)
+    fig, axes = plt.subplots(2, columnsInARow, figsize=(10, 4))
+
+    historyCtr=0
+    
+    for history in histories:
+
+        rowNdx=int(historyCtr/columnsInARow)
+        colNdx=historyCtr%columnsInARow
+
+        p=axes[rowNdx][colNdx]
+        name=names[historyCtr]
+
+        rows=len(history[0])
+        if (isinstance(history[0][0],list)):
+            cols = len(history[0][0])
+            for r in range(rows):
+                for c in range(cols):
+                    p.plot([m[r][c] for m in history], label=f"{name}[{r}][{c}]")
+        else:
+            for r in range(rows):
+                p.plot([m[r] for m in history], label=f"{name}[{r}]")
+        p.set_title(f"{names[historyCtr]} parameter trajectories")
+        p.legend()
+        historyCtr+=1
+
+    fig.supxlabel("Checkpoint index")
+    fig.supylabel("value")
+    plt.tight_layout()
+    plt.show()                      
 
 # Rows are samples in input and output, thus even though output, in this case, 
 # has only one value per sample, each sample is still a row. 
 n=SimpleNN([[0.0,0.0],[0.0,1.0],[1.0,0.0],[1.0,1.0]],[[0.0],[1.0],[1.0],[0.0]])
-loss=1 
-ctr=0
-while (loss>0.0001):
-    n.forwardPropagation()
-    n.backpropagation()
-    loss=n.loss()
-    if ctr%1000==0:
-        print(n.actualOutput);
-    ctr+=1
+
+w1History=HistoryList()
+b1History=HistoryList()
+w2History=HistoryList()
+b2History=HistoryList()
+actualOutputHistory=HistoryList()
+
+n.createReporter(w1History,n.w1)
+n.createReporter(b1History,n.b1)
+n.createReporter(w2History,n.w2)
+n.createReporter(b2History,n.b2)
+n.createReporter(actualOutputHistory,n.actualOutput)
+
+n.train()
+
 print ("Final Result:")
-print (n.actualOutput)
+print (f"Actual Output: {n.actualOutput}")
+print (f"       Epochs: {n.epochs}") 
+print (f"           w1: {n.w1}")
+print (f"           w2: {n.w2}")
+print (f"           b1: {n.b1}")
+print (f"           b2: {n.b2}")
+
+plot_history([x.records for x in [w1History,b1History,w2History,b2History,actualOutputHistory]],["w1","b1","w2","b2","actualOutput"])
