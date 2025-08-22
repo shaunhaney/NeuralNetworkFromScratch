@@ -3,9 +3,18 @@ class HistoryList:
     @property
     def records(self):
         return self._records
+    @property
+    def name(self):
+        return self._name
+    @name.setter
+    def name(self,value):
+        self._name=value
 
-    def __init__(self):
+    def __init__(self, name=None, liveList=None):
         self._records=[]
+        self._name=name
+        if (liveList is not None):
+            self.liveList=liveList
     
     def register(self, liveList):
         self.liveList=liveList

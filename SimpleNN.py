@@ -135,9 +135,26 @@ class SimpleNN:
     def epochs(self):
         del self._epochs
 
+    @property
+    def activation(self):
+        return self._activation
+        
+    @activation.setter
+    def activation(self,function):
+        self._activation=function
+    
+    @property
+    def activationPrime(self):
+        return self._activationPrime
+    
+    @activationPrime.setter
+    def activationPrime(self,function):
+        self._activationPrime=function
+
     def createReporter(self, reporter, matrix):
         reporter.register(matrix)
         self._reporters.append(reporter)
+        return reporter
 
     def report(self):
         for reporter in self._reporters: 
@@ -176,7 +193,7 @@ class SimpleNN:
         for ndx in range(self._inputColumns):
             self.w1.append([])
             for ndx2 in range(self._hiddenLayerSize):
-                self.w1[ndx].append(random.random())
+                self.w1[ndx].append(random.uniform(-1,1))
 
         # Create the initial set of weights
         # The matrix is going to be the number of hidden nodes (rows) by the 
@@ -185,19 +202,26 @@ class SimpleNN:
         for ndx in range(self._hiddenLayerSize):
             self.w2.append([])
             for ndx2 in range(self._outputColumns):
-                self.w2[ndx].append(random.random()) 
+                self.w2[ndx].append(self.getInitialRandomValue()) 
         
         #Create the vector of biases for the hidden nodes
         self.b1 = []
         for ndx in range(self._hiddenLayerSize):
-            self.b1.append(random.random())
+            self.b1.append(self.getInitialRandomValue())
 
         #Create the vector of biases for the hidden nodes
         self.b2 = []
         for ndx in range(self._outputColumns):
-            self.b2.append(random.random())
+            self.b2.append(self.getInitialRandomValue())
 
-        
+        print("Debug:")
+        print(self.w1)
+        print(self.b1)
+        print(self.w2)
+        print(self.b2)
+
+    def getInitialRandomValue(self):
+        return random.uniform(-0.1,0.1)
     
     def dotProduct(self, mX,mY):
         xNumRows=len(mX)
@@ -232,10 +256,9 @@ class SimpleNN:
                 o[d].append(a[r][d])
         return o
 
-    # keep our weight values between 0 and 1 noninclusive 
-    def sigmoid(self,x):
-        return 1/(1+math.exp(-x))
-    
+    # This is the neural network pass that most people probably think about with
+    # AI where it has established weight and bias values and produces an output
+    # at the end.     
     def forwardPropagation(self):
 
         # Perform dot product between inputs and weights
@@ -244,7 +267,7 @@ class SimpleNN:
         for ndx in range(len(z1)):
             self._hiddenLayer.append([])
             for ndx2 in range(len(z1[0])):
-                self._hiddenLayer[ndx].append(self.sigmoid(z1[ndx][ndx2]+self.b1[ndx2]))
+                self._hiddenLayer[ndx].append(self.activation(z1[ndx][ndx2]+self.b1[ndx2]))
         
         # Perform dot product between hidden layer and outputs
         z2=self.dotProduct(self._hiddenLayer,self.w2)
@@ -252,7 +275,7 @@ class SimpleNN:
         for ndx in range(len(z2)):
             self.actualOutput.append([])
             for ndx2 in range(len(z2[0])):
-                self.actualOutput[ndx].append(self.sigmoid(z2[ndx][ndx2]+self.b2[ndx2]))
+                self.actualOutput[ndx].append(self.activation(z2[ndx][ndx2]+self.b2[ndx2]))
 
     """
     loss: 
@@ -270,9 +293,6 @@ class SimpleNN:
                 total_loss += self._error[i][j] ** 2
         return total_loss / self._outputRows
 
-    def sigmoid_derivative(self, x):
-        return x * (1 - x)
-
     def backpropagation(self, learningRate=0.1):
         loss=self.loss()
 
@@ -281,26 +301,26 @@ class SimpleNN:
             row = []
             for j in range(self._outputColumns):
                 error = self._error[i][j]
-                derivative = self.sigmoid_derivative(self.actualOutput[i][j])
+                derivative = self.activationPrime(self.actualOutput[i][j])
                 row.append(error * derivative)
             output_delta.append(row)
 
         # Get output delta dot transform of w2
         hidden_error_signal = self.dotProduct(output_delta,self.transpose(self.w2))
 
-        # sigmoid derivative of 2D hidden layer 
-        sigmoid_gradients = []
+        # activation derivative of 2D hidden layer 
+        activationGradients = []
         for i in range(len(self._hiddenLayer)):
             row = []
             for j in range(len(self._hiddenLayer[0])):
-                row.append(self.sigmoid_derivative(self._hiddenLayer[i][j]))
-            sigmoid_gradients.append(row)
+                row.append(self.activationPrime(self._hiddenLayer[i][j]))
+            activationGradients.append(row)
 
         hidden_delta=[]
         for i in range(len(hidden_error_signal)):
             row = []
             for j in range(len(hidden_error_signal[0])):
-                row.append(hidden_error_signal[i][j] * sigmoid_gradients[i][j])
+                row.append(hidden_error_signal[i][j] * activationGradients[i][j])
             hidden_delta.append(row)
 
         # Update w1 and b1
@@ -346,30 +366,30 @@ class SimpleNN:
         self.report()
         self.epochs=ctr 
 
-def plot_history(histories, names):
+def plot_history(histories):
     columnsInARow=int(len(histories)/2+0.5)
     fig, axes = plt.subplots(2, columnsInARow, figsize=(10, 4))
 
     historyCtr=0
-    
     for history in histories:
 
         rowNdx=int(historyCtr/columnsInARow)
         colNdx=historyCtr%columnsInARow
 
         p=axes[rowNdx][colNdx]
-        name=names[historyCtr]
+        name=histories[historyCtr].name
 
-        rows=len(history[0])
-        if (isinstance(history[0][0],list)):
-            cols = len(history[0][0])
+        records=history.records
+        rows=len(records[0])
+        if (isinstance(records[0][0],list)):
+            cols = len(records[0][0])
             for r in range(rows):
                 for c in range(cols):
-                    p.plot([m[r][c] for m in history], label=f"{name}[{r}][{c}]")
+                    p.plot([m[r][c] for m in records], label=f"{name}[{r}][{c}]")
         else:
             for r in range(rows):
-                p.plot([m[r] for m in history], label=f"{name}[{r}]")
-        p.set_title(f"{names[historyCtr]} parameter trajectories")
+                p.plot([m[r] for m in records], label=f"{name}[{r}]")
+        p.set_title(f"{name} parameter trajectories")
         p.legend()
         historyCtr+=1
 
@@ -382,17 +402,15 @@ def plot_history(histories, names):
 # has only one value per sample, each sample is still a row. 
 n=SimpleNN([[0.0,0.0],[0.0,1.0],[1.0,0.0],[1.0,1.0]],[[0.0],[1.0],[1.0],[0.0]])
 
-w1History=HistoryList()
-b1History=HistoryList()
-w2History=HistoryList()
-b2History=HistoryList()
-actualOutputHistory=HistoryList()
+# Have the neural network use the sigmoid function
+n.activation=lambda x: 1/(1+math.exp(-x))
+n.activationPrime=lambda x:x * (1 - x)
 
-n.createReporter(w1History,n.w1)
-n.createReporter(b1History,n.b1)
-n.createReporter(w2History,n.w2)
-n.createReporter(b2History,n.b2)
-n.createReporter(actualOutputHistory,n.actualOutput)
+w1History=n.createReporter(HistoryList("w1"),n.w1)
+b1History=n.createReporter(HistoryList("b1"),n.b1)
+w2History=n.createReporter(HistoryList("w2"),n.w2)
+b2History=n.createReporter(HistoryList("b2"),n.b2)
+actualOutputHistory=n.createReporter(HistoryList("actualOutput"),n.actualOutput)
 
 n.train()
 
@@ -404,4 +422,4 @@ print (f"           w2: {n.w2}")
 print (f"           b1: {n.b1}")
 print (f"           b2: {n.b2}")
 
-plot_history([x.records for x in [w1History,b1History,w2History,b2History,actualOutputHistory]],["w1","b1","w2","b2","actualOutput"])
+plot_history([w1History,b1History,w2History,b2History,actualOutputHistory])
