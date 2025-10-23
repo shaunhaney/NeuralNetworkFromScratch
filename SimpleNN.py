@@ -173,9 +173,10 @@ class SimpleNN:
 
         try: 
             self._outputRows=len(expectedOutput)
-            self._outputColumns=len(expectedOutput[0])
         except: 
-            raise TypeError("Input needs to be a list")
+            raise TypeError("Output needs to be a list")
+        
+        self._outputColumns=len(expectedOutput[0])
         
             
         #Input and expected output should be lists.  Get their dimensions.
@@ -213,12 +214,6 @@ class SimpleNN:
         self.b2 = []
         for ndx in range(self._outputColumns):
             self.b2.append(self.getInitialRandomValue())
-
-        print("Debug:")
-        print(self.w1)
-        print(self.b1)
-        print(self.w2)
-        print(self.b2)
 
     def getInitialRandomValue(self):
         return random.uniform(-0.1,0.1)
@@ -259,10 +254,10 @@ class SimpleNN:
     # This is the neural network pass that most people probably think about with
     # AI where it has established weight and bias values and produces an output
     # at the end.     
-    def forwardPropagation(self):
+    def forwardPropagation(self, input):
 
         # Perform dot product between inputs and weights
-        z1=self.dotProduct(self.input,self.w1)
+        z1=self.dotProduct(input,self.w1)
         self._hiddenLayer=[] 
         for ndx in range(len(z1)):
             self._hiddenLayer.append([])
@@ -349,7 +344,7 @@ class SimpleNN:
             grad = sum([output_delta[k][i] for k in range(self._outputRows)])
             self.b2[i] += learningRate * grad
 
-    def train(self,learningRate=0.1,maxEpochs=None,targetLoss=0.00001):
+    def train(self,learningRate=0.1,reportingInterval=10000,maxEpochs=None,targetLoss=0.00001):
         loss=1
         ctr=0
         
@@ -357,26 +352,28 @@ class SimpleNN:
 
         keepGoing = lambda loss,ctr: (ctr<maxEpochs if maxEpochs is not None else True) and loss>targetLoss
         while (keepGoing(loss,ctr)):
-            self.forwardPropagation()
+            self.forwardPropagation(self.input)
             self.backpropagation(learningRate)
             loss=self.loss()
             ctr+=1
-            if (ctr%10000==0):
+            if (ctr%reportingInterval==0):
                 self.report()
+                print(ctr,loss)
         self.report()
         self.epochs=ctr 
 
 def plot_history(histories):
-    columnsInARow=int(len(histories)/2+0.5)
-    fig, axes = plt.subplots(2, columnsInARow, figsize=(10, 4))
+
+    n = len(histories)
+    ncols = math.ceil(math.sqrt(n))
+    nrows = math.ceil(n / ncols)
+    fig, axes = plt.subplots(nrows, ncols, figsize=(4*ncols, 3*nrows))
+    axes = axes.flatten()
 
     historyCtr=0
     for history in histories:
 
-        rowNdx=int(historyCtr/columnsInARow)
-        colNdx=historyCtr%columnsInARow
-
-        p=axes[rowNdx][colNdx]
+        p=axes[historyCtr]
         name=histories[historyCtr].name
 
         records=history.records
@@ -397,29 +394,3 @@ def plot_history(histories):
     fig.supylabel("value")
     plt.tight_layout()
     plt.show()                      
-
-# Rows are samples in input and output, thus even though output, in this case, 
-# has only one value per sample, each sample is still a row. 
-n=SimpleNN([[0.0,0.0],[0.0,1.0],[1.0,0.0],[1.0,1.0]],[[0.0],[1.0],[1.0],[0.0]])
-
-# Have the neural network use the sigmoid function
-n.activation=lambda x: 1/(1+math.exp(-x))
-n.activationPrime=lambda x:x * (1 - x)
-
-w1History=n.createReporter(HistoryList("w1"),n.w1)
-b1History=n.createReporter(HistoryList("b1"),n.b1)
-w2History=n.createReporter(HistoryList("w2"),n.w2)
-b2History=n.createReporter(HistoryList("b2"),n.b2)
-actualOutputHistory=n.createReporter(HistoryList("actualOutput"),n.actualOutput)
-
-n.train()
-
-print ("Final Result:")
-print (f"Actual Output: {n.actualOutput}")
-print (f"       Epochs: {n.epochs}") 
-print (f"           w1: {n.w1}")
-print (f"           w2: {n.w2}")
-print (f"           b1: {n.b1}")
-print (f"           b2: {n.b2}")
-
-plot_history([w1History,b1History,w2History,b2History,actualOutputHistory])
